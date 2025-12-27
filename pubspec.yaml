@@ -24,8 +24,24 @@ dependencies:
   # AI/ML
   tflite_flutter: ^0.10.4
 
+  # Date formatting
+  intl: ^0.19.0
+
+  # HTTP & API
+  http: ^1.1.0
+
+  # QR Code
+  qr_flutter: ^4.1.0
+
+  # Maps & Location
+  google_maps_flutter: ^2.5.0
+  geolocator: ^10.1.0
+  url_launcher: ^6.2.0
+
   # UI
   cupertino_icons: ^1.0.2
+
+
 
 dev_dependencies:
   flutter_test:

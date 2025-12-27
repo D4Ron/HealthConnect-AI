@@ -4,6 +4,7 @@ import 'config/supabase_config.dart';
 import 'services/local_storage_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/health_provider.dart';
+import 'providers/consultation_pass_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'utils/app_colors.dart';
 
@@ -26,6 +27,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => HealthProvider()),
+        ChangeNotifierProvider(create: (_) => ConsultationPassProvider()),
       ],
       child: MaterialApp(
         title: 'HealthConnect AI',

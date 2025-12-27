@@ -15,4 +15,12 @@ class AppConstants {
   static const String tableSymptoms = 'symptoms';
   static const String tableAlerts = 'alerts';
   static const String tableEmergencyPasses = 'emergency_passes';
+
+  // Django API Configuration
+  static const String djangoApiBaseUrl = 'YOUR_DJANGO_API_URL'; // e.g., 'https://api.yourdomain.com'
+  static const String consultationRequestEndpoint = '/api/consultation-request/';
+
+  // Consultation Pass Settings
+  static const int consultationPassValidityHours = 48;
+  static const int healthHistoryDays = 30;
 }

@@ -59,28 +59,44 @@ class _VitalSignsScreenState extends State<VitalSignsScreen> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final healthProvider = Provider.of<HealthProvider>(context, listen: false);
 
-    // Prepare vital signs data
-    final vitalSigns = {
-      if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty)
-        ...{
-          'systolic_bp': int.parse(_systolicController.text),
-          'diastolic_bp': int.parse(_diastolicController.text),
-        },
-      if (_heartRateController.text.isNotEmpty)
-        'heart_rate': int.parse(_heartRateController.text),
-      if (_glucoseController.text.isNotEmpty)
-        'glucose': int.parse(_glucoseController.text),
-      if (_weightController.text.isNotEmpty)
-        'weight': double.parse(_weightController.text),
-    };
+    // Prepare vital signs data with proper types
+    final vitalSigns = <String, dynamic>{};
 
-    // Perform AI analysis
+    int? systolicBP;
+    int? diastolicBP;
+    int? heartRate;
+    int? glucose;
+    double? weight;
+
+    if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty) {
+      systolicBP = int.parse(_systolicController.text);
+      diastolicBP = int.parse(_diastolicController.text);
+      vitalSigns['systolic_bp'] = systolicBP;
+      vitalSigns['diastolic_bp'] = diastolicBP;
+    }
+
+    if (_heartRateController.text.isNotEmpty) {
+      heartRate = int.parse(_heartRateController.text);
+      vitalSigns['heart_rate'] = heartRate;
+    }
+
+    if (_glucoseController.text.isNotEmpty) {
+      glucose = int.parse(_glucoseController.text);
+      vitalSigns['glucose'] = glucose;
+    }
+
+    if (_weightController.text.isNotEmpty) {
+      weight = double.parse(_weightController.text);
+      vitalSigns['weight'] = weight;
+    }
+
+    // Perform AI analysis with properly typed variables
     final analysis = AIAnalysisService.analyzeVitalSigns(
-      systolicBP: vitalSigns['systolic_bp'],
-      diastolicBP: vitalSigns['diastolic_bp'],
-      heartRate: vitalSigns['heart_rate'],
-      glucose: vitalSigns['glucose'],
-      weight: vitalSigns['weight'],
+      systolicBP: systolicBP,
+      diastolicBP: diastolicBP,
+      heartRate: heartRate,
+      glucose: glucose,
+      weight: weight,
     );
 
     // Save to database

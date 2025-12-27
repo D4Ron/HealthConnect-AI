@@ -6,6 +6,10 @@ import '../../utils/app_colors.dart';
 import '../auth/login_screen.dart';
 import 'daily_questionnaire_screen.dart';
 import 'medical_profile_screen.dart';
+import 'health_history_screen.dart';
+import 'package:provider/provider.dart';
+import '../../providers/consultation_pass_provider.dart';
+import 'consultation_request_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -18,18 +22,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
-    });
+    _loadData();
   }
 
   Future<void> _loadData() async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final healthProvider = Provider.of<HealthProvider>(context, listen: false);
+    final consultationProvider = Provider.of<ConsultationPassProvider>(context, listen: false);
 
     if (authProvider.currentUser != null) {
       await healthProvider.loadMedicalProfile(authProvider.currentUser!.id);
       await healthProvider.loadHealthRecords(authProvider.currentUser!.id);
+
+      // Check if consultation is needed
+      await consultationProvider.checkConsultationNeed(authProvider.currentUser!.id);
+
+      // Load active pass if exists
+      await consultationProvider.loadActivePass(authProvider.currentUser!.id);
     }
   }
 
@@ -72,6 +81,128 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 24),
+// Consultation Suggestion Banner (if triggered)
+            Consumer<ConsultationPassProvider>(
+              builder: (context, consultationProvider, child) {
+                if (consultationProvider.shouldShowConsultationSuggestion) {
+                  return Card(
+                    color: AppColors.warning.withOpacity(0.1),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.health_and_safety, color: AppColors.warning),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Consultation Recommandée',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, size: 20),
+                                onPressed: consultationProvider.dismissConsultationSuggestion,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Votre état de santé montre une baisse sur les 3 derniers jours.',
+                            style: TextStyle(fontSize: 14),
+                          ),
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ConsultationRequestScreen(
+                                    autoTriggered: true,
+                                  ),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.medical_services),
+                            label: const Text('Demander une consultation'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.warning,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
+            const SizedBox(height: 16),
+
+// Manual Consultation Request Button
+            Card(
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ConsultationRequestScreen(
+                        autoTriggered: false,
+                      ),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.medical_information,
+                          color: AppColors.primary,
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Demander une Consultation',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Obtenez un Pass de Consultation',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios, color: AppColors.textHint),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
 
 // Medical Profile Status
             if (healthProvider.medicalProfile == null)
@@ -107,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               )
+
             else
 // Daily Questionnaire Card
               Card(
@@ -165,6 +297,67 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
+            // Then add this card after the Daily Questionnaire Card in the build method:
+
+            const SizedBox(height: 16),
+
+// Health History Card
+            Card(
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const HealthHistoryScreen(),
+                    ),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: AppColors.info.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Icon(
+                          Icons.history,
+                          color: AppColors.info,
+                          size: 30,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Historique de Santé',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Voir vos bilans précédents',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.arrow_forward_ios,
+                          color: AppColors.textHint),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
             const SizedBox(height: 16),
 
