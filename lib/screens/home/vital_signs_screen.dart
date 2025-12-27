@@ -1,52 +1,264 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/health_provider.dart';
+import '../../services/ai_analysis_service.dart';
 import '../../utils/app_colors.dart';
-import 'home_screen.dart';
+import '../../utils/validators.dart';
+import '../../widgets/common/custom_button.dart';
+import '../../widgets/common/custom_text_field.dart';
+import 'vital_signs_result_screen.dart';
 
-class VitalSignsScreen extends StatelessWidget {
+class VitalSignsScreen extends StatefulWidget {
   const VitalSignsScreen({super.key});
 
   @override
+  State<VitalSignsScreen> createState() => _VitalSignsScreenState();
+}
+
+class _VitalSignsScreenState extends State<VitalSignsScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _systolicController = TextEditingController();
+  final _diastolicController = TextEditingController();
+  final _heartRateController = TextEditingController();
+  final _glucoseController = TextEditingController();
+  final _weightController = TextEditingController();
+
+  bool _showGlucose = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkConditions();
+  }
+
+  void _checkConditions() {
+    final healthProvider = Provider.of<HealthProvider>(context, listen: false);
+    final conditions = healthProvider.medicalProfile?.conditions ?? [];
+
+    // Show glucose field if user has diabetes
+    _showGlucose = conditions.any((c) =>
+    c.toLowerCase().contains('diabète') ||
+        c.toLowerCase().contains('diabetes')
+    );
+  }
+
+  @override
+  void dispose() {
+    _systolicController.dispose();
+    _diastolicController.dispose();
+    _heartRateController.dispose();
+    _glucoseController.dispose();
+    _weightController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitVitalSigns() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final healthProvider = Provider.of<HealthProvider>(context, listen: false);
+
+    // Prepare vital signs data
+    final vitalSigns = {
+      if (_systolicController.text.isNotEmpty && _diastolicController.text.isNotEmpty)
+        ...{
+          'systolic_bp': int.parse(_systolicController.text),
+          'diastolic_bp': int.parse(_diastolicController.text),
+        },
+      if (_heartRateController.text.isNotEmpty)
+        'heart_rate': int.parse(_heartRateController.text),
+      if (_glucoseController.text.isNotEmpty)
+        'glucose': int.parse(_glucoseController.text),
+      if (_weightController.text.isNotEmpty)
+        'weight': double.parse(_weightController.text),
+    };
+
+    // Perform AI analysis
+    final analysis = AIAnalysisService.analyzeVitalSigns(
+      systolicBP: vitalSigns['systolic_bp'],
+      diastolicBP: vitalSigns['diastolic_bp'],
+      heartRate: vitalSigns['heart_rate'],
+      glucose: vitalSigns['glucose'],
+      weight: vitalSigns['weight'],
+    );
+
+    // Save to database
+    final success = await healthProvider.submitHealthCheckIn(
+      userId: authProvider.currentUser!.id,
+      vitalSigns: vitalSigns,
+      riskScore: analysis['risk_score'],
+      status: analysis['status'],
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => VitalSignsResultScreen(
+            analysis: analysis,
+            vitalSigns: vitalSigns,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Erreur lors de l\'enregistrement'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final healthProvider = Provider.of<HealthProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Signes Vitaux'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.favorite, size: 80, color: AppColors.primary),
-            const SizedBox(height: 24),
-            const Text(
-              'Saisie des signes vitaux',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                '(Cette fonctionnalité sera implémentée dans la prochaine étape)',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.textSecondary),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enregistrez vos mesures',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const HomeScreen()),
-                      (route) => false,
-                );
-              },
-              child: const Text('Retour à l\'accueil'),
-            ),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                'Saisissez les valeurs que vous avez mesurées',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Blood Pressure
+              const Text(
+                '🩺 Tension Artérielle',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Systolique',
+                      hint: '120',
+                      controller: _systolicController,
+                      keyboardType: TextInputType.number,
+                      validator: (value) => Validators.validateBloodPressure(
+                        value,
+                        isSystolic: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: CustomTextField(
+                      label: 'Diastolique',
+                      hint: '80',
+                      controller: _diastolicController,
+                      keyboardType: TextInputType.number,
+                      validator: (value) => Validators.validateBloodPressure(
+                        value,
+                        isSystolic: false,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Heart Rate
+              CustomTextField(
+                label: '❤️ Fréquence Cardiaque (bpm)',
+                hint: '75',
+                controller: _heartRateController,
+                keyboardType: TextInputType.number,
+                validator: Validators.validateHeartRate,
+              ),
+              const SizedBox(height: 24),
+
+              // Glucose (conditional)
+              if (_showGlucose) ...[
+                CustomTextField(
+                  label: '🩸 Glycémie (mg/dL)',
+                  hint: '100',
+                  controller: _glucoseController,
+                  keyboardType: TextInputType.number,
+                  validator: Validators.validateGlucose,
+                ),
+                const SizedBox(height: 24),
+              ],
+
+              // Weight
+              CustomTextField(
+                label: '⚖️ Poids (kg) - Optionnel',
+                hint: '70',
+                controller: _weightController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                validator: (value) {
+                  if (value == null || value.isEmpty) return null;
+                  final weight = double.tryParse(value);
+                  if (weight == null || weight < 20 || weight > 300) {
+                    return 'Doit être entre 20 et 300 kg';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 32),
+
+              // Info Card
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.info.withOpacity(0.3)),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.info_outline, color: AppColors.info),
+                    SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Au moins 2 mesures sont requises pour l\'analyse',
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 32),
+
+              // Submit Button
+              CustomButton(
+                text: 'Analyser mes signes vitaux',
+                onPressed: _submitVitalSigns,
+                isLoading: healthProvider.isLoading,
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
   }
 }
-
-
