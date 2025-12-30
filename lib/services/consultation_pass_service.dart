@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'dart:io';
 import '../config/constants.dart';
 import '../config/supabase_config.dart';
 import '../models/consultation_pass_model.dart';
@@ -10,7 +11,6 @@ import '../models/health_record_model.dart';
 class ConsultationPassService {
   final _supabase = SupabaseConfig.client;
 
-  // Generate consultation pass via Django API
   Future<ConsultationPassModel?> requestConsultation({
     required UserModel user,
     required MedicalProfileModel medicalProfile,
@@ -26,61 +26,89 @@ class ConsultationPassService {
         reason: reason,
       );
 
-      // Call Django API
-      final response = await http.post(
+      // Calculate age from date of birth
+      int? age;
+      if (medicalProfile.dateOfBirth != null) {
+        age = DateTime.now().year - medicalProfile.dateOfBirth!.year;
+      }
+
+      // Create multipart request instead of JSON
+      var request = http.MultipartRequest(
+        'POST',
         Uri.parse(
           '${AppConstants.djangoApiBaseUrl}${AppConstants.consultationRequestEndpoint}',
         ),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'patient_data': {
-            'user_id': user.id,
-            'email': user.email,
-            'first_name': user.firstName,
-            'last_name': user.lastName,
-          },
-          'medical_profile': {
-            'conditions': medicalProfile.conditions,
-            'medications': medicalProfile.medications,
-            'allergies': medicalProfile.allergies,
-            'blood_type': medicalProfile.bloodType,
-            'emergency_contact': medicalProfile.emergencyContact,
-            'emergency_phone': medicalProfile.emergencyPhone,
-          },
-          'health_history': healthHistory.map((record) {
-            return {
-              'timestamp': record.timestamp.toIso8601String(),
-              'vital_signs': record.vitalSigns,
-              'risk_score': record.riskScore,
-              'status': record.status,
-            };
-          }).toList(),
-          'clinical_summary': clinicalSummary,
-          'request_reason': reason,
-          'requested_at': DateTime.now().toIso8601String(),
-        }),
       );
+
+      // Add text fields
+      request.fields['patient_first_name'] = user.firstName ?? '';
+      request.fields['patient_last_name'] = user.lastName ?? '';
+      request.fields['patient_email'] = user.email;
+      if (age != null) {
+        request.fields['age'] = age.toString();
+      }
+
+      // Add complex data as JSON strings
+      request.fields['medical_profile'] = jsonEncode({
+        'conditions': medicalProfile.conditions,
+        'medications': medicalProfile.medications,
+        'allergies': medicalProfile.allergies,
+        'blood_type': medicalProfile.bloodType,
+        'emergency_contact': medicalProfile.emergencyContact,
+        'emergency_phone': medicalProfile.emergencyPhone,
+      });
+
+      request.fields['health_history'] = jsonEncode(healthHistory.map((record) {
+        return {
+          'timestamp': record.timestamp.toIso8601String(),
+          'vital_signs': record.vitalSigns,
+          'risk_score': record.riskScore,
+          'status': record.status,
+        };
+      }).toList());
+
+      request.fields['clinical_summary'] = jsonEncode(clinicalSummary);
+
+      if (reason != null) {
+        request.fields['request_reason'] = reason;
+      }
+
+      request.fields['requested_at'] = DateTime.now().toIso8601String();
+
+      print('Sending multipart request to: ${request.url}');
+      print('Fields: ${request.fields}');
+
+      // Send request
+      var streamedResponse = await request.send().timeout(
+        const Duration(seconds: 30),
+        onTimeout: () {
+          throw Exception('Connection timeout - Please check your server');
+        },
+      );
+
+      // Get response
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
 
-        // Save to Supabase
+        // Save to Supabase with data from Django
         final passData = {
           'user_id': user.id,
-          'pass_id': data['pass_id'],
-          'numeric_code': data['numeric_code'],
-          'qr_code': data['qr_code'],
+          'pass_id': data['id'].toString(),
+          'numeric_code': data['id'].toString(),
+          'qr_code': data['qr_code_url'],
           'clinical_summary': clinicalSummary,
-          'facility_id': data['facility_id'],
-          'facility_name': data['facility_name'],
-          'facility_address': data['facility_address'],
-          'assigned_department': data['assigned_department'],
-          'facility_latitude': data['facility_latitude'],
-          'facility_longitude': data['facility_longitude'],
-          'estimated_wait_time': data['estimated_wait_time'],
+          'facility_id': null,
+          'facility_name': null,
+          'facility_address': null,
+          'assigned_department': null,
+          'facility_latitude': null,
+          'facility_longitude': null,
+          'estimated_wait_time': null,
           'status': 'pending',
           'generated_at': DateTime.now().toIso8601String(),
           'valid_until': DateTime.now()
@@ -88,16 +116,40 @@ class ConsultationPassService {
               .toIso8601String(),
         };
 
-        final savedPass = await _supabase
-            .from(AppConstants.tableEmergencyPasses)
-            .insert(passData)
-            .select()
-            .single();
+        try {
+          final savedPass = await _supabase
+              .from(AppConstants.tableEmergencyPasses)
+              .insert(passData)
+              .select()
+              .single();
 
-        return ConsultationPassModel.fromJson(savedPass);
+          return ConsultationPassModel.fromJson({
+            ...savedPass,
+            'qr_code_url': data['qr_code_url'],
+          });
+        } catch (supabaseError) {
+          print('Supabase error: $supabaseError');
+          return ConsultationPassModel.fromJson({
+            'id': data['id'].toString(),
+            'user_id': user.id,
+            'pass_id': data['id'].toString(),
+            'numeric_code': data['id'].toString(),
+            'qr_code_url': data['qr_code_url'],
+            'clinical_summary': clinicalSummary,
+            'status': 'pending',
+            'generated_at': DateTime.now().toIso8601String(),
+            'valid_until': DateTime.now()
+                .add(Duration(hours: AppConstants.consultationPassValidityHours))
+                .toIso8601String(),
+          });
+        }
       } else {
-        throw Exception('Erreur API: ${response.statusCode} - ${response.body}');
+        throw Exception('Django API Error: ${response.statusCode} - ${response.body}');
       }
+    } on SocketException {
+      throw Exception('Network error - Please check your internet connection and server');
+    } on FormatException {
+      throw Exception('Invalid response format from server');
     } catch (e) {
       print('Request consultation error: $e');
       rethrow;

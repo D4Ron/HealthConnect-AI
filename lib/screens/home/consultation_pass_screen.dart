@@ -111,24 +111,84 @@ class ConsultationPassScreen extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          // QR Code
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: AppColors.primary,
-                                width: 2,
+                          // QR Code - Updated to load from URL
+                          if (pass.qrCodeUrl != null)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.primary,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Image.network(
+                                pass.qrCodeUrl!,
+                                width: 200,
+                                height: 200,
+                                fit: BoxFit.contain,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return SizedBox(
+                                    width: 200,
+                                    height: 200,
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        value: loadingProgress.expectedTotalBytes != null
+                                            ? loadingProgress.cumulativeBytesLoaded /
+                                            loadingProgress.expectedTotalBytes!
+                                            : null,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  // Fallback to generating QR locally if URL fails
+                                  return Container(
+                                    padding: const EdgeInsets.all(8),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        QrImageView(
+                                          data: pass.passId,
+                                          version: QrVersions.auto,
+                                          size: 200,
+                                          backgroundColor: Colors.white,
+                                        ),
+                                        const SizedBox(height: 8),
+                                        const Text(
+                                          'Mode hors ligne',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                              ),
+                            )
+                          else
+                          // Fallback if no URL provided - generate locally
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppColors.primary,
+                                  width: 2,
+                                ),
+                              ),
+                              child: QrImageView(
+                                data: pass.passId,
+                                version: QrVersions.auto,
+                                size: 200,
+                                backgroundColor: Colors.white,
                               ),
                             ),
-                            child: QrImageView(
-                              data: pass.passId,
-                              version: QrVersions.auto,
-                              size: 200,
-                              backgroundColor: Colors.white,
-                            ),
-                          ),
                           const SizedBox(height: 24),
                           // Numeric Code
                           const Text(
@@ -330,14 +390,14 @@ class ConsultationPassScreen extends StatelessWidget {
                         color: AppColors.info.withOpacity(0.3),
                       ),
                     ),
-                    child: Column(
+                    child: const Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
                             Icon(Icons.info_outline, color: AppColors.info),
-                            const SizedBox(width: 8),
-                            const Text(
+                            SizedBox(width: 8),
+                            Text(
                               'Instructions',
                               style: TextStyle(
                                 fontSize: 16,
@@ -346,8 +406,8 @@ class ConsultationPassScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        const Text(
+                        SizedBox(height: 12),
+                        Text(
                           '1. Rendez-vous à l\'établissement indiqué\n'
                               '2. Présentez votre QR code ou code numérique à l\'accueil\n'
                               '3. Vous serez dirigé vers le service approprié\n'

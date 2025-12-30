@@ -17,8 +17,9 @@ class AppConstants {
   static const String tableEmergencyPasses = 'emergency_passes';
 
   // Django API Configuration
-  static const String djangoApiBaseUrl = 'YOUR_DJANGO_API_URL'; // e.g., 'https://api.yourdomain.com'
-  static const String consultationRequestEndpoint = '/api/consultation-request/';
+  static const String djangoApiBaseUrl = 'https://healthapi-bxmp.onrender.com/';
+  // Endpoint should start with a slash
+  static const String consultationRequestEndpoint = 'healthApi/pass/';
 
   // Consultation Pass Settings
   static const int consultationPassValidityHours = 48;

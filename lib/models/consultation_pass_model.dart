@@ -3,7 +3,7 @@ class ConsultationPassModel {
   final String userId;
   final String passId;
   final String numericCode;
-  final String? qrCodeData;
+  final String? qrCodeUrl; // Changed from qrCodeData to qrCodeUrl
   final Map<String, dynamic> clinicalSummary;
   final String? facilityId;
   final String? facilityName;
@@ -12,7 +12,7 @@ class ConsultationPassModel {
   final double? facilityLatitude;
   final double? facilityLongitude;
   final int? estimatedWaitTime;
-  final String status; // 'pending', 'active', 'completed', 'expired'
+  final String status;
   final DateTime generatedAt;
   final DateTime validUntil;
   final DateTime? arrivalConfirmedAt;
@@ -22,7 +22,7 @@ class ConsultationPassModel {
     required this.userId,
     required this.passId,
     required this.numericCode,
-    this.qrCodeData,
+    this.qrCodeUrl,
     required this.clinicalSummary,
     this.facilityId,
     this.facilityName,
@@ -39,22 +39,26 @@ class ConsultationPassModel {
 
   factory ConsultationPassModel.fromJson(Map<String, dynamic> json) {
     return ConsultationPassModel(
-      id: json['id'] as String,
-      userId: json['user_id'] as String,
-      passId: json['pass_id'] as String,
-      numericCode: json['numeric_code'] as String,
-      qrCodeData: json['qr_code'] as String?,
-      clinicalSummary: json['clinical_summary'] as Map<String, dynamic>,
-      facilityId: json['facility_id'] as String?,
+      id: json['id'].toString(),
+      userId: json['user_id']?.toString() ?? '',
+      passId: json['pass_id']?.toString() ?? json['id'].toString(),
+      numericCode: json['numeric_code']?.toString() ?? '',
+      qrCodeUrl: json['qr_code_url'] as String?,
+      clinicalSummary: json['clinical_summary'] as Map<String, dynamic>? ?? {},
+      facilityId: json['facility_id']?.toString(),
       facilityName: json['facility_name'] as String?,
       facilityAddress: json['facility_address'] as String?,
       assignedDepartment: json['assigned_department'] as String?,
       facilityLatitude: json['facility_latitude']?.toDouble(),
       facilityLongitude: json['facility_longitude']?.toDouble(),
       estimatedWaitTime: json['estimated_wait_time'] as int?,
-      status: json['status'] as String,
-      generatedAt: DateTime.parse(json['generated_at'] as String),
-      validUntil: DateTime.parse(json['valid_until'] as String),
+      status: json['status'] as String? ?? 'pending',
+      generatedAt: json['generated_at'] != null
+          ? DateTime.parse(json['generated_at'] as String)
+          : DateTime.now(),
+      validUntil: json['valid_until'] != null
+          ? DateTime.parse(json['valid_until'] as String)
+          : DateTime.now().add(const Duration(hours: 48)),
       arrivalConfirmedAt: json['arrival_confirmed_at'] != null
           ? DateTime.parse(json['arrival_confirmed_at'] as String)
           : null,
@@ -67,7 +71,7 @@ class ConsultationPassModel {
       'user_id': userId,
       'pass_id': passId,
       'numeric_code': numericCode,
-      'qr_code': qrCodeData,
+      'qr_code_url': qrCodeUrl,
       'clinical_summary': clinicalSummary,
       'facility_id': facilityId,
       'facility_name': facilityName,
